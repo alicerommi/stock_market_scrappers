@@ -1,24 +1,18 @@
 import scrapy
-#from bs4 import BeautifulSoup
+from collections import defaultdict
 class FinvizzSpiderSpider(scrapy.Spider):
     name = 'finviz_spider'
     allowed_domains = ['finviz.com']
     start_urls = ['https://finviz.com/']
     def start_requests(self):
-        # self points to the spider instance
-        # that was initialized by the scrapy framework when starting a crawl
-        #
-        # spider instances are "augmented" with crawl arguments
-        # available as instance attributes,
-        # self.ip has the (string) value passed on the command line
-        # with `-a ip=somevalue`
 
         for url in self.start_urls:
             yield scrapy.Request(url+"quote.ashx?t="+self.ticker, dont_filter=True)
 
     def parse(self,response):
         #bs4_response = BeautifulSoup(response.text, 'lxml')
-        my_dict = {"stock_basic_data":{},"stock_analyst_rating_data":{},"news":{}}
+        my_dict = {"stock_basic_data":defaultdict(list),"stock_analyst_rating_data":defaultdict(list),"news":defaultdict(list)}
+
         company_info_table = response.xpath('.//table[@class="fullview-title"]')
         company_info_table_rows = company_info_table.xpath('.//tr')
 
@@ -55,18 +49,18 @@ class FinvizzSpiderSpider(scrapy.Spider):
         ratings_table_rows  = response.css('table.fullview-ratings-outer').css('td.fullview-ratings-inner')
         for  index,row in enumerate(ratings_table_rows.css('tr')):
             d = [rows_tds.css('::text').get() for rows_tds in row.css('td')]
-            my_dict['stock_analyst_rating_data']['analyst_rating_date_'+str(index+1)] = d[0]
-            my_dict['stock_analyst_rating_data']['analyst_rating_status_'+str(index+1)] = d[1]
-            my_dict['stock_analyst_rating_data']['analyst_rating_name_'+str(index+1)] = d[2]
-            my_dict['stock_analyst_rating_data']['analyst_rating_call_'+str(index+1)] = d[3]
-            my_dict['stock_analyst_rating_data']['analyst_rating_target_price_'+str(index+1)] =d[4]
+            my_dict['stock_analyst_rating_data']['analyst_rating_date'].append(d[0])
+            my_dict['stock_analyst_rating_data']['analyst_rating_status'].append (d[1])
+            my_dict['stock_analyst_rating_data']['analyst_rating_name'].append (d[2])
+            my_dict['stock_analyst_rating_data']['analyst_rating_call'].append (d[3])
+            my_dict['stock_analyst_rating_data']['analyst_rating_target_price'].append(d[4])
 
         # Scrapping News #
         news_table_rows = response.css('table.fullview-news-outer').css('tr')
         for index, row in enumerate(news_table_rows):
             td_data= [td for td in row.css('td') ]
-            my_dict['news']['news_datetime_'+str(index)]= td_data[0].css('::text').get()
-            my_dict['news']['news_text_'+str(index)] = td_data[1].css('a::text').get()
-            my_dict['news']['news_link_'+str(index)] = td_data[1].css('a::attr(href)').get()
-            my_dict['news']['news_source_'+str(index)] = td_data[1].css('div.news-link-right>span::text').get()
+            my_dict['news']['news_datetime'].append(td_data[0].css('::text').get())
+            my_dict['news']['news_text'].append(td_data[1].css('a::text').get())
+            my_dict['news']['news_link'].append(td_data[1].css('a::attr(href)').get())
+            my_dict['news']['news_source'].append(td_data[1].css('div.news-link-right>span::text').get())
         yield(my_dict)
