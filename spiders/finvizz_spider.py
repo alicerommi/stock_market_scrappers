@@ -11,17 +11,17 @@ class FinvizzSpiderSpider(scrapy.Spider):
         # spider instances are "augmented" with crawl arguments
         # available as instance attributes,
         # self.ip has the (string) value passed on the command line
-        # with `-a ip=somevalue` 
+        # with `-a ip=somevalue`
 
         for url in self.start_urls:
             yield scrapy.Request(url+"quote.ashx?t="+self.ticker, dont_filter=True)
 
     def parse(self,response):
         #bs4_response = BeautifulSoup(response.text, 'lxml')
-        my_dict = {"stock_basic_data":{},"stock_analyst_rating_data":{}}
+        my_dict = {"stock_basic_data":{},"stock_analyst_rating_data":{},"news":{}}
         company_info_table = response.xpath('.//table[@class="fullview-title"]')
         company_info_table_rows = company_info_table.xpath('.//tr')
-        
+
         my_dict['stock_basic_data']['exchange_name']  = company_info_table_rows[0].xpath('./td/span/text()')[0].extract().replace('[','').replace(']','')
         my_dict['stock_basic_data']['symbol'] = company_info_table_rows[0].xpath('./td/a/text()')[0].extract()
         my_dict['stock_basic_data']['company_website'] =  company_info_table_rows[1].xpath('./td/a/@href')[0].extract()
@@ -35,7 +35,7 @@ class FinvizzSpiderSpider(scrapy.Spider):
         first_table_rows = first_table.xpath('.//tr[@class="table-dark-row"]')
         names_tds = first_table_rows.xpath('.//td[@class="snapshot-td2-cp"]')
         values_tds = first_table_rows.xpath('.//td[@class="snapshot-td2"]')
-        
+
         for index, td in enumerate(values_tds):
             key  = names_tds[index].css('td::text').get()
             td_element = td.xpath('.//b/*')
@@ -48,7 +48,7 @@ class FinvizzSpiderSpider(scrapy.Spider):
                 else:
                     element = td.xpath('.//b[small]')
                     value = element.xpath('.//text()')[0].extract()
-            dt[key] = value
+            
             my_dict['stock_basic_data'][key] = value
 
         ###### Rating Table ###########
@@ -60,4 +60,13 @@ class FinvizzSpiderSpider(scrapy.Spider):
             my_dict['stock_analyst_rating_data']['analyst_rating_name_'+str(index+1)] = d[2]
             my_dict['stock_analyst_rating_data']['analyst_rating_call_'+str(index+1)] = d[3]
             my_dict['stock_analyst_rating_data']['analyst_rating_target_price_'+str(index+1)] =d[4]
-        yield (my_dict)
+
+        # Scrapping News #
+        news_table_rows = response.css('table.fullview-news-outer').css('tr')
+        for index, row in enumerate(news_table_rows):
+            td_data= [td for td in row.css('td') ]
+            my_dict['news']['news_datetime_'+str(index)]= td_data[0].css('::text').get()
+            my_dict['news']['news_text_'+str(index)] = td_data[1].css('a::text').get()
+            my_dict['news']['news_link_'+str(index)] = td_data[1].css('a::attr(href)').get()
+            my_dict['news']['news_source_'+str(index)] = td_data[1].css('div.news-link-right>span::text').get()
+        yield(my_dict)
